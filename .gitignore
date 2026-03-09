@@ -1,12 +1,17 @@
 node_modules
 dist
 .env
+*.env
+.env.*
 
-# Ignore all data files (collections, environments, variables, history)
-data/**
-!data/
-!data/collections/
-!data/environments/
-!data/variables/
-!data/history/
-!data/**/.gitkeep
+# Ignore ALL data files — contains API keys, tokens, credentials
+# Keep only the empty directory structure via .gitkeep
+data/collections/*.json
+data/environments/*.json
+data/variables/*.json
+data/history/*.json
+
+backend/data/collections/*.json
+backend/data/environments/*.json
+backend/data/variables/*.json
+backend/data/history/*.json
