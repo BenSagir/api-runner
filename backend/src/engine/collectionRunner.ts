@@ -9,6 +9,7 @@ import {
   VariableScope,
   ExecutionResult,
   StoredEnvironment,
+  RequestOverrides,
 } from './types';
 import { executeRequest } from './requestExecutor';
 import {
@@ -120,6 +121,7 @@ export interface RunOptions {
   collection: PostmanCollection;
   environmentId?: string;
   itemPath?: string; // If provided, only run this item (request or folder)
+  overrides?: RequestOverrides; // UI edits to apply to the target request
 }
 
 /**
@@ -196,7 +198,7 @@ function gatherParentContext(items: PostmanItem[], itemPath: string): {
  * Run requests: single request, folder, or entire collection.
  */
 export async function runCollection(options: RunOptions): Promise<ExecutionResult[]> {
-  const { collectionId, collection, environmentId, itemPath } = options;
+  const { collectionId, collection, environmentId, itemPath, overrides } = options;
   const scope = buildScope(collection, collectionId, environmentId);
   const results: ExecutionResult[] = [];
 
@@ -238,6 +240,7 @@ export async function runCollection(options: RunOptions): Promise<ExecutionResul
       parentAuth,
       parentEvents,
       requestPath: reqPath,
+      overrides: requestList.length === 1 ? overrides : undefined,
     });
 
     results.push(result);

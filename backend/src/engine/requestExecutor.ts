@@ -7,6 +7,7 @@ import {
   VariableScope,
   ExecutionResult,
   TestResult,
+  RequestOverrides,
 } from './types';
 import {
   resolveVariables,
@@ -24,13 +25,14 @@ export interface ExecuteRequestOptions {
   parentAuth?: PostmanAuth;
   parentEvents?: PostmanEvent[];
   requestPath: string;
+  overrides?: RequestOverrides;
 }
 
 /**
  * Execute a single Postman request item.
  */
 export async function executeRequest(options: ExecuteRequestOptions): Promise<ExecutionResult> {
-  const { item, scope, collectionAuth, collectionEvents, parentAuth, parentEvents, requestPath } = options;
+  const { item, scope, collectionAuth, collectionEvents, parentAuth, parentEvents, requestPath, overrides } = options;
 
   if (!item.request) {
     return {
@@ -51,6 +53,34 @@ export async function executeRequest(options: ExecuteRequestOptions): Promise<Ex
   }
 
   const request = item.request;
+
+  // Apply overrides from UI edits
+  if (overrides) {
+    if (overrides.url !== undefined) {
+      request.url = overrides.url;
+    }
+    if (overrides.headers) {
+      request.header = overrides.headers.map(h => ({
+        key: h.key,
+        value: h.value,
+        disabled: !h.enabled,
+      }));
+    }
+    if (overrides.body) {
+      const ob = overrides.body;
+      if (ob.mode === 'none') {
+        request.body = undefined;
+      } else {
+        request.body = {
+          mode: ob.mode as any,
+          raw: ob.raw,
+          options: request.body?.options,
+          urlencoded: ob.urlencoded?.map(u => ({ key: u.key, value: u.value, disabled: !u.enabled })),
+          formdata: ob.formdata?.map(f => ({ key: f.key, value: f.value, type: f.type, disabled: !f.enabled })),
+        };
+      }
+    }
+  }
 
   // Gather pre-request scripts (collection -> parent folder -> request)
   const preRequestScripts: string[][] = [];

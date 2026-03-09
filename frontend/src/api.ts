@@ -98,9 +98,19 @@ export async function saveGlobals(globals: Record<string, string>) {
 export async function runRequest(
   collectionId: string,
   environmentId?: string,
-  itemPath?: string
+  itemPath?: string,
+  overrides?: {
+    url?: string;
+    headers?: Array<{ key: string; value: string; enabled: boolean }>;
+    body?: {
+      mode: string;
+      raw?: string;
+      urlencoded?: Array<{ key: string; value: string; enabled: boolean }>;
+      formdata?: Array<{ key: string; value: string; type: string; enabled: boolean }>;
+    };
+  }
 ) {
-  const { data } = await api.post('/run', { collectionId, environmentId, itemPath });
+  const { data } = await api.post('/run', { collectionId, environmentId, itemPath, overrides });
   return data;
 }
 

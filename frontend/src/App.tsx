@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as api from './api';
 import Sidebar from './components/Sidebar';
-import RequestDetail from './components/RequestDetail';
+import RequestDetail, { RequestOverrides } from './components/RequestDetail';
 import ResponsePanel from './components/ResponsePanel';
 import EnvironmentEditor from './components/EnvironmentEditor';
 import RunResults from './components/RunResults';
@@ -160,7 +160,7 @@ export default function App() {
     }
   }, [activeEnvironmentId, loadEnvironments]);
 
-  const handleRun = useCallback(async (itemPath?: string) => {
+  const handleRun = useCallback(async (itemPath?: string, overrides?: RequestOverrides) => {
     if (!activeCollectionId) return;
     setRunning(true);
     setError(null);
@@ -171,7 +171,8 @@ export default function App() {
       const data = await api.runRequest(
         activeCollectionId,
         activeEnvironmentId || undefined,
-        itemPath
+        itemPath,
+        overrides
       );
       setResults(data.results);
     } catch (err: any) {
@@ -281,7 +282,7 @@ export default function App() {
           <RequestDetail
             item={selectedItem}
             itemPath={selectedItemPath || ''}
-            onRun={() => handleRun(selectedItemPath || undefined)}
+            onRun={(overrides) => handleRun(selectedItemPath || undefined, overrides)}
             running={running}
           />
         ) : mainView === 'environment' && activeEnvironmentId ? (

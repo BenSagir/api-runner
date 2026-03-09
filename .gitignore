@@ -1,11 +1,12 @@
 node_modules
 dist
 .env
-data/collections/*
-data/environments/*
-data/variables/*
-data/history/*
-!data/collections/.gitkeep
-!data/environments/.gitkeep
-!data/variables/.gitkeep
-!data/history/.gitkeep
+
+# Ignore all data files (collections, environments, variables, history)
+data/**
+!data/
+!data/collections/
+!data/environments/
+!data/variables/
+!data/history/
+!data/**/.gitkeep

@@ -200,3 +200,14 @@ export interface CollectionTreeNode {
   path: string;
   children?: CollectionTreeNode[];
 }
+
+export interface RequestOverrides {
+  url?: string;
+  headers?: Array<{ key: string; value: string; enabled: boolean }>;
+  body?: {
+    mode: string;
+    raw?: string;
+    urlencoded?: Array<{ key: string; value: string; enabled: boolean }>;
+    formdata?: Array<{ key: string; value: string; type: string; enabled: boolean }>;
+  };
+}

@@ -216,7 +216,7 @@ app.put('/api/globals', (req, res) => {
 
 app.post('/api/run', async (req, res) => {
   try {
-    const { collectionId, environmentId, itemPath } = req.body;
+    const { collectionId, environmentId, itemPath, overrides } = req.body;
 
     if (!collectionId) {
       return res.status(400).json({ error: 'collectionId is required' });
@@ -232,6 +232,7 @@ app.post('/api/run', async (req, res) => {
       collection: stored.collection,
       environmentId: environmentId || undefined,
       itemPath: itemPath || undefined,
+      overrides: overrides || undefined,
     });
 
     res.json({ results });
