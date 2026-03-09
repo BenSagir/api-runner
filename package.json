@@ -1,0 +1,17 @@
+{
+  "name": "api-runner",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npx tsx watch src/server.ts",
+    "dev:frontend": "cd frontend && npx vite --port 5173",
+    "build:backend": "cd backend && npx tsc",
+    "build:frontend": "cd frontend && npx vite build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
