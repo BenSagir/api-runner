@@ -11,6 +11,10 @@ import {
   deleteCollection,
   buildCollectionTree,
   getItemByPath,
+  addItem,
+  updateItem,
+  deleteItem,
+  moveItem,
 } from './engine/collectionLoader';
 import {
   importEnvironmentFromJson,
@@ -121,6 +125,65 @@ app.delete('/api/collections/:id', (req, res) => {
     const deleted = deleteCollection(req.params.id);
     if (!deleted) return res.status(404).json({ error: 'Collection not found' });
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ──────────────────────── COLLECTION ITEMS (CRUD) ────────────────────────
+
+// Add a new request or folder
+app.post('/api/collections/:id/items', (req, res) => {
+  try {
+    const { parentPath, item } = req.body;
+    if (!item || !item.name) {
+      return res.status(400).json({ error: 'item.name is required' });
+    }
+    const stored = addItem(req.params.id, parentPath || null, item);
+    if (!stored) return res.status(404).json({ error: 'Collection or parent folder not found' });
+    const tree = buildCollectionTree(stored.collection.item);
+    res.json({ success: true, tree });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update an item (rename, change method)
+app.put('/api/collections/:id/items/:itemPath(*)', (req, res) => {
+  try {
+    const { name, method } = req.body;
+    const stored = updateItem(req.params.id, req.params.itemPath, { name, method });
+    if (!stored) return res.status(404).json({ error: 'Collection or item not found' });
+    const tree = buildCollectionTree(stored.collection.item);
+    res.json({ success: true, tree });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete an item
+app.delete('/api/collections/:id/items/:itemPath(*)', (req, res) => {
+  try {
+    const stored = deleteItem(req.params.id, req.params.itemPath);
+    if (!stored) return res.status(404).json({ error: 'Collection or item not found' });
+    const tree = buildCollectionTree(stored.collection.item);
+    res.json({ success: true, tree });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Move an item to a different position / folder
+app.put('/api/collections/:id/items-move', (req, res) => {
+  try {
+    const { fromPath, toParentPath, toIndex } = req.body;
+    if (fromPath === undefined || toIndex === undefined) {
+      return res.status(400).json({ error: 'fromPath and toIndex are required' });
+    }
+    const stored = moveItem(req.params.id, fromPath, toParentPath ?? null, toIndex);
+    if (!stored) return res.status(404).json({ error: 'Collection or item not found' });
+    const tree = buildCollectionTree(stored.collection.item);
+    res.json({ success: true, tree });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

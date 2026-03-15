@@ -44,6 +44,45 @@ export async function deleteCollection(id: string) {
   return data;
 }
 
+// ── Collection Items (CRUD) ──
+
+export async function addCollectionItem(
+  collectionId: string,
+  parentPath: string | null,
+  item: { name: string; request?: { method: string; url: string | { raw: string } }; item?: any[] }
+) {
+  const { data } = await api.post(`/collections/${collectionId}/items`, { parentPath, item });
+  return data;
+}
+
+export async function updateCollectionItem(
+  collectionId: string,
+  itemPath: string,
+  updates: { name?: string; method?: string }
+) {
+  const { data } = await api.put(`/collections/${collectionId}/items/${itemPath}`, updates);
+  return data;
+}
+
+export async function deleteCollectionItem(collectionId: string, itemPath: string) {
+  const { data } = await api.delete(`/collections/${collectionId}/items/${itemPath}`);
+  return data;
+}
+
+export async function moveCollectionItem(
+  collectionId: string,
+  fromPath: string,
+  toParentPath: string | null,
+  toIndex: number
+) {
+  const { data } = await api.put(`/collections/${collectionId}/items-move`, {
+    fromPath,
+    toParentPath,
+    toIndex,
+  });
+  return data;
+}
+
 // ── Environments ──
 
 export async function fetchEnvironments() {
