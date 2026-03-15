@@ -34,11 +34,28 @@ pm.expect(value).to.equal(expected)
 ## Quick Start
 
 ```bash
-# Install all dependencies
-npm install
-cd backend && npm install && cd ..
-cd frontend && npm install && cd ..
+# Install all dependencies (also creates a desktop launcher automatically)
+npm run install:all
+```
 
+A **desktop launcher app** is created on your Desktop during install:
+
+| Platform | Launcher | Icon |
+|----------|----------|------|
+| macOS    | `API Runner.app` | Custom `.icns` from `assets/icon.icns` |
+| Windows  | `API Runner.lnk` shortcut | Default (falls back to `.bat` if shortcut creation fails) |
+
+Double-click it to start both the backend and frontend, then your browser opens to **http://localhost:5173** automatically.
+
+To create the launcher manually at any time:
+
+```bash
+node scripts/create-launcher.js
+```
+
+### Manual Start
+
+```bash
 # Run (starts backend on :3001 and frontend on :5173)
 npm run dev
 ```
@@ -61,6 +78,10 @@ Then open **http://localhost:5173** in your browser.
 
 ```
 /api-runner
+  /assets
+    icon.icns                 # App icon (macOS .icns format)
+  /scripts
+    create-launcher.js        # Creates desktop launcher on install
   /backend
     /src
       /engine

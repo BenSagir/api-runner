@@ -9,7 +9,8 @@
     "build:backend": "cd backend && npx tsc",
     "build:frontend": "cd frontend && npx vite build",
     "build": "npm run build:backend && npm run build:frontend",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install"
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "postinstall": "node scripts/create-launcher.js"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
