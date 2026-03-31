@@ -58,7 +58,18 @@ export async function addCollectionItem(
 export async function updateCollectionItem(
   collectionId: string,
   itemPath: string,
-  updates: { name?: string; method?: string }
+  updates: {
+    name?: string;
+    method?: string;
+    url?: string;
+    headers?: Array<{ key: string; value: string; enabled: boolean }>;
+    body?: {
+      mode: string;
+      raw?: string;
+      urlencoded?: Array<{ key: string; value: string; enabled: boolean }>;
+      formdata?: Array<{ key: string; value: string; type: string; enabled: boolean }>;
+    };
+  }
 ) {
   const { data } = await api.put(`/collections/${collectionId}/items/${itemPath}`, updates);
   return data;

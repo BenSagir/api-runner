@@ -1,12 +1,149 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type { ExecutionResult } from '../App';
 
 interface ResponsePanelProps {
   result: ExecutionResult;
 }
 
+// Collapsible JSON Viewer Component
+interface JsonNodeProps {
+  data: any;
+  keyName?: string;
+  isLast?: boolean;
+  depth?: number;
+  defaultExpanded?: boolean;
+}
+
+function JsonNode({ data, keyName, isLast = true, depth = 0, defaultExpanded = true }: JsonNodeProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded && depth < 3);
+
+  const isObject = data !== null && typeof data === 'object' && !Array.isArray(data);
+  const isArray = Array.isArray(data);
+  const isExpandable = isObject || isArray;
+
+  const toggleExpand = useCallback(() => setExpanded(e => !e), []);
+
+  const indent = { paddingLeft: depth * 16 };
+  const comma = isLast ? '' : ',';
+
+  if (!isExpandable) {
+    // Primitive value
+    let valueClass = 'json-value';
+    let displayValue: string;
+
+    if (typeof data === 'string') {
+      valueClass += ' json-string';
+      displayValue = `"${data}"`;
+    } else if (typeof data === 'number') {
+      valueClass += ' json-number';
+      displayValue = String(data);
+    } else if (typeof data === 'boolean') {
+      valueClass += ' json-boolean';
+      displayValue = String(data);
+    } else if (data === null) {
+      valueClass += ' json-null';
+      displayValue = 'null';
+    } else {
+      displayValue = String(data);
+    }
+
+    return (
+      <div className="json-line" style={indent}>
+        {keyName !== undefined && <span className="json-key">"{keyName}"</span>}
+        {keyName !== undefined && <span className="json-colon">: </span>}
+        <span className={valueClass}>{displayValue}</span>
+        <span className="json-comma">{comma}</span>
+      </div>
+    );
+  }
+
+  const entries: [string | number, any][] = isArray
+    ? data.map((v: any, i: number) => [i, v] as [number, any])
+    : Object.entries(data);
+  const bracketOpen = isArray ? '[' : '{';
+  const bracketClose = isArray ? ']' : '}';
+  const isEmpty = entries.length === 0;
+
+  if (isEmpty) {
+    return (
+      <div className="json-line" style={indent}>
+        {keyName !== undefined && <span className="json-key">"{keyName}"</span>}
+        {keyName !== undefined && <span className="json-colon">: </span>}
+        <span className="json-bracket">{bracketOpen}{bracketClose}</span>
+        <span className="json-comma">{comma}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="json-node">
+      <div className="json-line json-expandable" style={indent} onClick={toggleExpand}>
+        <span className="json-toggle">{expanded ? '▼' : '▶'}</span>
+        {keyName !== undefined && <span className="json-key">"{keyName}"</span>}
+        {keyName !== undefined && <span className="json-colon">: </span>}
+        <span className="json-bracket">{bracketOpen}</span>
+        {!expanded && (
+          <>
+            <span className="json-collapsed-preview">
+              {isArray ? `${entries.length} items` : `${entries.length} keys`}
+            </span>
+            <span className="json-bracket">{bracketClose}</span>
+            <span className="json-comma">{comma}</span>
+          </>
+        )}
+      </div>
+      {expanded && (
+        <>
+          {entries.map(([key, value], index) => (
+            <JsonNode
+              key={key}
+              data={value}
+              keyName={isArray ? undefined : String(key)}
+              isLast={index === entries.length - 1}
+              depth={depth + 1}
+              defaultExpanded={depth < 2}
+            />
+          ))}
+          <div className="json-line" style={indent}>
+            <span className="json-bracket">{bracketClose}</span>
+            <span className="json-comma">{comma}</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CollapsibleJsonViewer({ data }: { data: any }) {
+  const [allExpanded, setAllExpanded] = useState(true);
+  const [key, setKey] = useState(0);
+
+  const expandAll = () => {
+    setAllExpanded(true);
+    setKey(k => k + 1);
+  };
+
+  const collapseAll = () => {
+    setAllExpanded(false);
+    setKey(k => k + 1);
+  };
+
+  return (
+    <div className="json-viewer">
+      <div className="json-viewer-toolbar">
+        <button className="btn-secondary btn-sm" onClick={expandAll}>Expand All</button>
+        <button className="btn-secondary btn-sm" onClick={collapseAll}>Collapse All</button>
+      </div>
+      <div className="json-viewer-content" key={key}>
+        <JsonNode data={data} defaultExpanded={allExpanded} />
+      </div>
+    </div>
+  );
+}
+
 export default function ResponsePanel({ result }: ResponsePanelProps) {
   const [activeTab, setActiveTab] = useState<'body' | 'headers' | 'tests'>('body');
+  const [viewMode, setViewMode] = useState<'pretty' | 'raw'>('pretty');
 
   const statusClass = result.status >= 200 && result.status < 300
     ? 'success'
@@ -25,6 +162,22 @@ export default function ResponsePanel({ result }: ResponsePanelProps) {
     }
     return JSON.stringify(body, null, 2);
   };
+
+  const parseJsonBody = (body: any): any | null => {
+    if (body === null || body === undefined) return null;
+    if (typeof body === 'string') {
+      try {
+        return JSON.parse(body);
+      } catch {
+        return null;
+      }
+    }
+    if (typeof body === 'object') return body;
+    return null;
+  };
+
+  const jsonBody = parseJsonBody(result.responseBody);
+  const isJson = jsonBody !== null;
 
   const passedTests = result.testResults.filter(t => t.passed).length;
   const totalTests = result.testResults.length;
@@ -69,7 +222,29 @@ export default function ResponsePanel({ result }: ResponsePanelProps) {
       {/* Tab content */}
       <div className="response-panel">
         {activeTab === 'body' && (
-          <pre className="response-body">{formatBody(result.responseBody)}</pre>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {isJson && (
+              <div style={{ display: 'flex', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+                <button
+                  className={`btn-sm ${viewMode === 'pretty' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setViewMode('pretty')}
+                >
+                  Pretty
+                </button>
+                <button
+                  className={`btn-sm ${viewMode === 'raw' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setViewMode('raw')}
+                >
+                  Raw
+                </button>
+              </div>
+            )}
+            {isJson && viewMode === 'pretty' ? (
+              <CollapsibleJsonViewer data={jsonBody} />
+            ) : (
+              <pre className="response-body">{formatBody(result.responseBody)}</pre>
+            )}
+          </div>
         )}
 
         {activeTab === 'headers' && (

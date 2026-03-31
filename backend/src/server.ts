@@ -148,11 +148,11 @@ app.post('/api/collections/:id/items', (req, res) => {
   }
 });
 
-// Update an item (rename, change method)
+// Update an item (rename, change method, url, headers, body)
 app.put('/api/collections/:id/items/:itemPath(*)', (req, res) => {
   try {
-    const { name, method } = req.body;
-    const stored = updateItem(req.params.id, req.params.itemPath, { name, method });
+    const { name, method, url, headers, body } = req.body;
+    const stored = updateItem(req.params.id, req.params.itemPath, { name, method, url, headers, body });
     if (!stored) return res.status(404).json({ error: 'Collection or item not found' });
     const tree = buildCollectionTree(stored.collection.item);
     res.json({ success: true, tree });

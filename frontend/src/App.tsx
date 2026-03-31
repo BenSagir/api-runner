@@ -399,7 +399,9 @@ export default function App() {
               <RequestDetail
                 item={selectedItem}
                 itemPath={selectedItemPath || ''}
+                collectionId={activeCollectionId || ''}
                 onRun={(overrides) => handleRun(selectedItemPath || undefined, overrides)}
+                onRequestSaved={reloadTree}
                 running={running}
               />
             </div>

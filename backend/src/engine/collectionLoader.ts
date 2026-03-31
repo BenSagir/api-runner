@@ -226,12 +226,23 @@ export function addItem(
   return stored;
 }
 
-// ── Update an existing item (rename, change method, etc.) ──
+// ── Update an existing item (rename, change method, url, headers, body) ──
 
 export function updateItem(
   collectionId: string,
   itemPath: string,
-  updates: { name?: string; method?: string }
+  updates: {
+    name?: string;
+    method?: string;
+    url?: string;
+    headers?: Array<{ key: string; value: string; enabled: boolean }>;
+    body?: {
+      mode: string;
+      raw?: string;
+      urlencoded?: Array<{ key: string; value: string; enabled: boolean }>;
+      formdata?: Array<{ key: string; value: string; type: string; enabled: boolean }>;
+    };
+  }
 ): StoredCollection | null {
   const stored = getCollection(collectionId);
   if (!stored) return null;
@@ -244,6 +255,48 @@ export function updateItem(
   }
   if (updates.method !== undefined && item.request) {
     item.request.method = updates.method.toUpperCase();
+  }
+  if (updates.url !== undefined && item.request) {
+    if (typeof item.request.url === 'string') {
+      item.request.url = updates.url;
+    } else if (item.request.url) {
+      item.request.url.raw = updates.url;
+    } else {
+      item.request.url = { raw: updates.url };
+    }
+  }
+  if (updates.headers !== undefined && item.request) {
+    item.request.header = updates.headers.map(h => ({
+      key: h.key,
+      value: h.value,
+      disabled: !h.enabled,
+    }));
+  }
+  if (updates.body !== undefined && item.request) {
+    const newBody: any = { mode: updates.body.mode };
+    if (updates.body.mode === 'raw' && updates.body.raw !== undefined) {
+      newBody.raw = updates.body.raw;
+      // Preserve language options if JSON
+      if (item.request.body?.options) {
+        newBody.options = item.request.body.options;
+      }
+    }
+    if (updates.body.mode === 'urlencoded' && updates.body.urlencoded) {
+      newBody.urlencoded = updates.body.urlencoded.map(u => ({
+        key: u.key,
+        value: u.value,
+        disabled: !u.enabled,
+      }));
+    }
+    if (updates.body.mode === 'formdata' && updates.body.formdata) {
+      newBody.formdata = updates.body.formdata.map(f => ({
+        key: f.key,
+        value: f.value,
+        type: f.type,
+        disabled: !f.enabled,
+      }));
+    }
+    item.request.body = newBody;
   }
 
   saveCollection(stored);

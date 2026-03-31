@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import { updateCollectionItem } from '../api';
 
 export interface RequestOverrides {
   url?: string;
@@ -15,7 +16,9 @@ export interface RequestOverrides {
 interface RequestDetailProps {
   item: any;
   itemPath: string;
+  collectionId: string;
   onRun: (overrides?: RequestOverrides) => void;
+  onRequestSaved?: () => void;
   running: boolean;
 }
 
@@ -40,11 +43,52 @@ function formatRawBody(raw: string, lang: string): string {
   return raw;
 }
 
-export default function RequestDetail({ item, itemPath, onRun, running }: RequestDetailProps) {
-  const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'scripts'>('body');
+// Parse query params from URL
+function parseQueryParams(url: string): Array<{ key: string; value: string; enabled: boolean }> {
+  try {
+    const questionIndex = url.indexOf('?');
+    if (questionIndex === -1) return [];
+    const queryString = url.slice(questionIndex + 1);
+    const params: Array<{ key: string; value: string; enabled: boolean }> = [];
+    const pairs = queryString.split('&');
+    for (const pair of pairs) {
+      if (!pair) continue;
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex === -1) {
+        params.push({ key: decodeURIComponent(pair), value: '', enabled: true });
+      } else {
+        params.push({
+          key: decodeURIComponent(pair.slice(0, eqIndex)),
+          value: decodeURIComponent(pair.slice(eqIndex + 1)),
+          enabled: true,
+        });
+      }
+    }
+    return params;
+  } catch {
+    return [];
+  }
+}
+
+// Build URL from base and params
+function buildUrlWithParams(baseUrl: string, params: Array<{ key: string; value: string; enabled: boolean }>): string {
+  const questionIndex = baseUrl.indexOf('?');
+  const base = questionIndex === -1 ? baseUrl : baseUrl.slice(0, questionIndex);
+  const enabledParams = params.filter(p => p.enabled && p.key);
+  if (enabledParams.length === 0) return base;
+  const queryString = enabledParams
+    .map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`)
+    .join('&');
+  return `${base}?${queryString}`;
+}
+
+export default function RequestDetail({ item, itemPath, collectionId, onRun, onRequestSaved, running }: RequestDetailProps) {
+  const [activeTab, setActiveTab] = useState<'params' | 'headers' | 'body' | 'auth' | 'scripts'>('body');
+  const [saving, setSaving] = useState(false);
 
   // Editable state
   const [editUrl, setEditUrl] = useState('');
+  const [editParams, setEditParams] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [editHeaders, setEditHeaders] = useState<Array<{ key: string; value: string; enabled: boolean }>>([]);
   const [editBodyMode, setEditBodyMode] = useState<string>('none');
   const [editRawBody, setEditRawBody] = useState('');
@@ -55,7 +99,9 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
   useEffect(() => {
     if (!item.request) return;
     const request = item.request;
-    setEditUrl(typeof request.url === 'string' ? request.url : request.url?.raw || '');
+    const url = typeof request.url === 'string' ? request.url : request.url?.raw || '';
+    setEditUrl(url);
+    setEditParams(parseQueryParams(url));
     setEditHeaders((request.header || []).map((h: any) => ({ key: h.key || '', value: h.value || '', enabled: !h.disabled })));
     const body = request.body;
     if (body) {
@@ -70,6 +116,18 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
       setEditFormData([]);
     }
   }, [item, itemPath]);
+
+  // Sync URL when params change
+  const updateUrlFromParams = useCallback((params: Array<{ key: string; value: string; enabled: boolean }>) => {
+    setEditParams(params);
+    setEditUrl(prev => buildUrlWithParams(prev, params));
+  }, []);
+
+  // Sync params when URL changes manually
+  const handleUrlChange = useCallback((newUrl: string) => {
+    setEditUrl(newUrl);
+    setEditParams(parseQueryParams(newUrl));
+  }, []);
 
   const bodyLanguage = useMemo(() => detectLanguage(item.request?.body), [item]);
 
@@ -100,6 +158,44 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
 
   const handleSend = () => onRun(buildOverrides());
 
+  // Beautify JSON body
+  const beautifyBody = () => {
+    if (bodyLanguage === 'json') {
+      try {
+        const parsed = JSON.parse(editRawBody);
+        setEditRawBody(JSON.stringify(parsed, null, 2));
+      } catch {
+        // Invalid JSON, do nothing
+      }
+    }
+  };
+
+  // Save request to collection
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateCollectionItem(collectionId, itemPath, {
+        url: editUrl,
+        headers: editHeaders,
+        body: { mode: editBodyMode, raw: editRawBody, urlencoded: editUrlEncoded, formdata: editFormData },
+      });
+      onRequestSaved?.();
+    } catch (err) {
+      console.error('Failed to save request:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Params helpers
+  const updateParam = (i: number, field: string, value: any) => {
+    const newParams = [...editParams];
+    newParams[i] = { ...newParams[i], [field]: value };
+    updateUrlFromParams(newParams);
+  };
+  const addParam = () => updateUrlFromParams([...editParams, { key: '', value: '', enabled: true }]);
+  const removeParam = (i: number) => updateUrlFromParams(editParams.filter((_, idx) => idx !== i));
+
   // ── Header helpers ──
   const updateHeader = (i: number, field: string, value: any) => setEditHeaders(prev => { const n = [...prev]; n[i] = { ...n[i], [field]: value }; return n; });
   const addHeader = () => setEditHeaders(prev => [...prev, { key: '', value: '', enabled: true }]);
@@ -123,10 +219,13 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
         <input
           className="url"
           value={editUrl}
-          onChange={e => setEditUrl(e.target.value)}
+          onChange={e => handleUrlChange(e.target.value)}
           placeholder="Enter request URL"
           style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13 }}
         />
+        <button className="btn-secondary" onClick={handleSave} disabled={saving} style={{ marginRight: 4 }}>
+          {saving ? 'Saving...' : 'Save'}
+        </button>
         <button className="btn-primary" onClick={handleSend} disabled={running}>
           {running ? 'Running...' : 'Send'}
         </button>
@@ -134,6 +233,7 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
 
       {/* Tabs */}
       <div className="tab-bar">
+        <button className={`tab ${activeTab === 'params' ? 'active' : ''}`} onClick={() => setActiveTab('params')}>Params ({editParams.filter(p => p.enabled && p.key).length})</button>
         <button className={`tab ${activeTab === 'body' ? 'active' : ''}`} onClick={() => setActiveTab('body')}>Body</button>
         <button className={`tab ${activeTab === 'headers' ? 'active' : ''}`} onClick={() => setActiveTab('headers')}>Headers ({editHeaders.filter(h => h.enabled).length})</button>
         <button className={`tab ${activeTab === 'auth' ? 'active' : ''}`} onClick={() => setActiveTab('auth')}>Auth</button>
@@ -142,6 +242,22 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* ── Params Tab ── */}
+        {activeTab === 'params' && (
+          <div style={{ padding: 16 }}>
+            <div className="editable-kv-header"><span>Key</span><span>Value</span><span></span><span></span></div>
+            {editParams.map((p, i) => (
+              <div key={i} className="editable-kv-row">
+                <input value={p.key} onChange={e => updateParam(i, 'key', e.target.value)} placeholder="Parameter name" />
+                <input value={p.value} onChange={e => updateParam(i, 'value', e.target.value)} placeholder="Value" />
+                <input type="checkbox" checked={p.enabled} onChange={e => updateParam(i, 'enabled', e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                <button className="btn-icon btn-sm" onClick={() => removeParam(i)} title="Remove">✕</button>
+              </div>
+            ))}
+            <button className="btn-secondary btn-sm" onClick={addParam} style={{ marginTop: 8 }}>+ Add Parameter</button>
+          </div>
+        )}
+
         {/* ── Body Tab ── */}
         {activeTab === 'body' && (
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -161,7 +277,17 @@ export default function RequestDetail({ item, itemPath, onRun, running }: Reques
             )}
 
             {editBodyMode === 'raw' && (
-              <div style={{ flex: 1, minHeight: 200 }}>
+              <div style={{ flex: 1, minHeight: 200, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
+                  <button
+                    className="btn-secondary btn-sm"
+                    onClick={beautifyBody}
+                    disabled={bodyLanguage !== 'json'}
+                    title={bodyLanguage !== 'json' ? 'Beautify is only available for JSON' : 'Format JSON'}
+                  >
+                    Beautify
+                  </button>
+                </div>
                 <Editor
                   height="100%"
                   language={bodyLanguage}
